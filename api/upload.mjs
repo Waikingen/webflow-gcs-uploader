@@ -58,7 +58,7 @@ export default async (req, res) => {
     const gcsFileName = `${fileId}-${filename}`;
     const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
 
-    const expiresAt = Date.now() + 10 * 60 * 1000; // Signerad URL giltig i 10 min för UPLADDNING
+    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar (48h * 60min/h * 60s/min * 1000ms/s)
 
     const [uploadUrl] = await file.getSignedUrl({
       version: "v4",

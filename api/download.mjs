@@ -71,7 +71,7 @@ export default async (req, res) => {
     }
 
     // Generera en signerad URL för att läsa filen.
-    const expiresAt = Date.now() + 10 * 60 * 1000; // Signerad URL giltig i 10 min för Vercel att läsa
+    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar (48h * 60min/h * 60s/min * 1000ms/s)
     const [gcsReadUrl] = await file.getSignedUrl({
       version: "v4",
       action: "read",

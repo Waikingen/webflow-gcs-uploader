@@ -6,7 +6,8 @@ module.exports = async (req, res) => {
   // Lägg till ALLA domäner som ska kunna prata med din API-funktion här
   const allowedOrigins = [
     "https://www.wikingmedia.com",
-    "https://wiking-media.webflow.io"
+    "https://wiking-media.webflow.io",
+    "https://webflow-gcs-uploader.vercel.app"
     // Lägg även till din Vercel-applikations URL här när den är klar, t.ex. "https://webflow-gcs-uploader.vercel.app"
   ];
 

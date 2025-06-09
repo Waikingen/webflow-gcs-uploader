@@ -67,7 +67,7 @@ export default async (req, res) => {
 
     // Construct gcsFileName as "basename.ext-uniqueId"
     // This ensures the extension is always before the unique identifier for easy parsing.
-    const gcsFileName = `${originalBaseName}${originalExtension}-${uniqueId}`; 
+const gcsFileName = `${originalBaseName}-${uniqueId}${originalExtension}`;
     // Example: "remuneration-new (1).png-1749486849780-abcdef"
 
     const file = storage.bucket(BUCKET_NAME).file(gcsFileName);

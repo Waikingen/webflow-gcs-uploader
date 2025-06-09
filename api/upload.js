@@ -42,7 +42,7 @@ module.exports = async (req, res) => {
       projectId: serviceAccount.project_id,
       credentials: {
         client_email: serviceAccount.client_email,
-        private_key: serviceAccount.private_key.replace(/\\n/g, '\n'), // Viktigt för att hantera radbrytningar
+        private_key: serviceAccount.private_key.replace(/\\n/g, '\n'),
       },
     });
 

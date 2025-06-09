@@ -1,8 +1,11 @@
-// api/download.js
-const { Storage } = require("@google-cloud/storage");
-const fetch = require('node-fetch'); // Installera denna om den saknas (npm install node-fetch)
+// api/download.mjs (FILNAMN BÖR ÄNDRAS TILL .mjs)
 
-module.exports = async (req, res) => {
+// Använd "import" för @google-cloud/storage istället för "require"
+import { Storage } from "@google-cloud/storage";
+import fetch from 'node-fetch';
+
+// Funktionen måste exporteras med "export default" för ES Modules
+export default async (req, res) => {
   // --- CORS HEADERS & PREFLIGHT HANDLING ---
   const allowedOrigins = [
     "https://www.wikingmedia.com",
@@ -16,7 +19,7 @@ module.exports = async (req, res) => {
   }
 
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS"); // Endast GET för nedladdning
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 
@@ -61,14 +64,13 @@ module.exports = async (req, res) => {
     
     // Försök lägga till filändelse om den saknas i originalFileName (t.ex. om filen hette bara "mittdokument" innan)
     if (!originalFileName.includes('.') && contentType) {
-        const fileExtension = contentType.split('/')[1]; // T.ex. från "image/png" -> "png"
+        const fileExtension = contentType.split('/')[1];
         if (fileExtension) {
             originalFileName = `${originalFileName}.${fileExtension}`;
         }
     }
 
-    // Generera en signerad URL för att läsa filen. Vi använder INTE responseDisposition här.
-    // Vercel-funktionen kommer att hantera Content-Disposition-headern själv.
+    // Generera en signerad URL för att läsa filen.
     const expiresAt = Date.now() + 10 * 60 * 1000; // Signerad URL giltig i 10 min för Vercel att läsa
     const [gcsReadUrl] = await file.getSignedUrl({
       version: "v4",
@@ -88,11 +90,8 @@ module.exports = async (req, res) => {
 
     // Sätt Content-Disposition: attachment. Detta är vad som tvingar nedladdningen.
     res.setHeader('Content-Disposition', `attachment; filename="${originalFileName}"`);
-    res.setHeader('Content-Type', contentType); // Använd filtypen från GCS metadata
+    res.setHeader('Content-Type', contentType);
     
-    // Valfria headers, t.ex. för cachekontroll
-    // res.setHeader('Cache-Control', 'public, max-age=60'); 
-
     // Strömma GCS-svaret direkt till klienten (webbläsaren)
     gcsResponse.body.pipe(res);
 

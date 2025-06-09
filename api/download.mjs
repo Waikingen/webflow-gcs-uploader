@@ -1,10 +1,8 @@
-// api/download.mjs (FILNAMN BÖR ÄNDRAS TILL .mjs)
+// api/download.mjs
 
-// Använd "import" för @google-cloud/storage istället för "require"
 import { Storage } from "@google-cloud/storage";
 import fetch from 'node-fetch';
 
-// Funktionen måste exporteras med "export default" för ES Modules
 export default async (req, res) => {
   // --- CORS HEADERS & PREFLIGHT HANDLING ---
   const allowedOrigins = [
@@ -57,12 +55,18 @@ export default async (req, res) => {
 
     const file = storage.bucket(BUCKET_NAME).file(publicId);
 
-    // Hämta metadata för att få filtyp och originalfilnamn
+    // Hämta metadata för att få filtyp, originalfilnamn OCH DITT MEDDELANDE
     const [metadata] = await file.getMetadata();
     const contentType = metadata.contentType || 'application/octet-stream';
-    let originalFileName = publicId.includes('-') ? publicId.substring(publicId.indexOf('-') + 1) : publicId;
     
-    // Försök lägga till filändelse om den saknas i originalFileName (t.ex. om filen hette bara "mittdokument" innan)
+    // --- Extrahera originalfilnamnet från publicId ---
+    const lastHyphenIndex = publicId.lastIndexOf('-');
+    let originalFileName = publicId;
+    if (lastHyphenIndex !== -1) {
+        originalFileName = publicId.substring(0, lastHyphenIndex);
+    }
+    
+    // Försök lägga till filändelse om den saknas i originalFileName
     if (!originalFileName.includes('.') && contentType) {
         const fileExtension = contentType.split('/')[1];
         if (fileExtension) {
@@ -70,8 +74,12 @@ export default async (req, res) => {
         }
     }
 
+    // *** Hämta det lagrade meddelandet från metadata ***
+    // GCS konverterar metadata-nycklar till små bokstäver och lagrar dem under 'metadata' objektet.
+    const userMessage = metadata.metadata && metadata.metadata['user-message'] ? metadata.metadata['user-message'] : '';
+
     // Generera en signerad URL för att läsa filen.
-    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar (48h * 60min/h * 60s/min * 1000ms/s)
+    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar
     const [gcsReadUrl] = await file.getSignedUrl({
       version: "v4",
       action: "read",
@@ -79,6 +87,7 @@ export default async (req, res) => {
     });
 
     console.log(`INFO: Vercel hämtar fil från GCS via: ${gcsReadUrl}`);
+    console.log(`INFO: Filmeddelande från metadata: ${userMessage}`); // Logga meddelandet
 
     // --- Proxy-logik: Hämta filen från GCS och skicka den till klienten ---
     const gcsResponse = await fetch(gcsReadUrl);

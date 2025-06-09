@@ -1,4 +1,4 @@
-// api/upload.mjs (FILNAMN BÖR ÄNDRAS TILL .mjs)
+// api/upload.mjs
 
 import { Storage } from "@google-cloud/storage";
 import * as crypto from "crypto";
@@ -48,35 +48,40 @@ export default async (req, res) => {
 
     const BUCKET_NAME = "wiking-portal"; // Se till att detta är namnet på din bucket
 
-    const { filename, contentType } = req.body;
+    const { filename, contentType, message } = req.body; // <--- LÄGG TILL 'message' HÄR!
 
     if (!filename || !contentType) {
       return res.status(400).send("Missing fields: filename or contentType");
     }
 
     const fileId = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
-    const gcsFileName = `${fileId}-${filename}`;
+    const gcsFileName = `${filename}-${fileId}`; // Filnamnet kommer först
     const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
 
-    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar (48h * 60min/h * 60s/min * 1000ms/s)
+    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar
 
     const [uploadUrl] = await file.getSignedUrl({
       version: "v4",
       action: "write",
       expires: expiresAt,
       contentType: contentType,
+      // *** LÄGG TILL metadata för att lagra meddelandet ***
+      metadata: {
+        'user-message': message || '' // Lagra meddelandet, eller en tom sträng om inget meddelande gavs
+      }
     });
 
     return res.json({
       uploadUrl: uploadUrl,
-      publicId: gcsFileName // Detta är filens unika ID i GCS
+      publicId: gcsFileName, // Detta är filens unika ID i GCS
+      message: message || '' // Skicka tillbaka meddelandet till klienten för bekräftelse/vidare hantering
     });
 
   } catch (error) {
-    console.error('Error in Vercel upload-function:', error); // Specifikare loggmeddelande
+    console.error('Error in Vercel upload-function:', error);
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
         return res.status(500).json({ error: 'Server configuration error: GCS_KEY is not valid JSON. Check format.' });
     }
-    return res.status(500).json({ error: 'Internal Server Error: Could not process upload request.' }); // Specifikare felmeddelande
+    return res.status(500).json({ error: 'Internal Server Error: Could not process upload request.' });
   }
 };

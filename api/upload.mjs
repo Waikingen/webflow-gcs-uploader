@@ -54,9 +54,22 @@ export default async (req, res) => {
       return res.status(400).send("Missing fields: filename or contentType");
     }
 
-    const fileId = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
-    const gcsFileName = `${filename}-${fileId}`; // Filnamnet kommer först
-    const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
+const fileId = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
+
+const lastDotIndex = filename.lastIndexOf('.');
+let gcsFileName;
+
+if (lastDotIndex > -1) {
+    // If there's an extension, insert the fileId before it
+    const baseName = filename.substring(0, lastDotIndex);
+    const extension = filename.substring(lastDotIndex); // Includes the dot, e.g., ".jpg"
+    gcsFileName = `${baseName}-${fileId}${extension}`;
+} else {
+    // If no extension, just append the fileId
+    gcsFileName = `${filename}-${fileId}`;
+}
+
+const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
 
     const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar
 

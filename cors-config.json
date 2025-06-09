@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://wiking-media.webflow.io", "https://www.wikingmedia.com"],
+    "method": ["PUT", "POST", "GET", "DELETE"],
+    "responseHeader": ["Content-Type", "x-goog-meta-data"],
+    "maxAgeSeconds": 3600
+  }
+]

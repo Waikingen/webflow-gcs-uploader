@@ -15,7 +15,7 @@ module.exports = async (req, res) => {
   }
 
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS"); // Lägg till GET här!
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 
@@ -70,7 +70,7 @@ module.exports = async (req, res) => {
 
     // --- Logik för NEDLADDNING (GET-förfrågan) ---
     else if (req.method === "GET") {
-      const { publicId } = req.query; // publicId kommer nu som query-parameter
+      const { publicId } = req.query;
 
       if (!publicId) {
         return res.status(400).json({ error: 'Missing publicId for download.' });
@@ -78,13 +78,20 @@ module.exports = async (req, res) => {
 
       const file = storage.bucket(BUCKET_NAME).file(publicId);
 
-      // Skapa en signerad URL som är giltig i 10 minuter för NEDLADDNING (läsning)
       const expiresAt = Date.now() + 10 * 60 * 1000; // Signerad URL giltig i 10 min för NEDLADDNING
+
+      // Försök extrahera originalfilnamnet från publicId för Content-Disposition
+      const originalFileName = publicId.includes('-') ? publicId.substring(publicId.indexOf('-') + 1) : publicId;
 
       const [downloadUrl] = await file.getSignedUrl({
         version: "v4",
-        action: "read", // <-- VIKTIGT: Här är det 'read' för nedladdning!
+        action: "read",
         expires: expiresAt,
+        // *** NY IMPLEMENTERING HÄR: Tvinga Content-Disposition: attachment ***
+        // Detta instruerar GCS att skicka filen som en nedladdning till webbläsaren.
+        otherArgs: {
+          responseDisposition: `attachment; filename="${originalFileName}"`,
+        },
       });
 
       return res.json({ downloadUrl: downloadUrl });

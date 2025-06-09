@@ -1,7 +1,8 @@
-// api/upload.mjs
+// api/upload.mjs (THE CORRECTED VERSION)
 
 import { Storage } from "@google-cloud/storage";
 import * as crypto from "crypto";
+import path from 'path'; // Import Node.js path module for better path handling
 
 export default async (req, res) => {
   // --- CORS HEADERS & PREFLIGHT HANDLING ---
@@ -17,7 +18,7 @@ export default async (req, res) => {
   }
 
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS"); // Endast POST för uppladdning
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 
@@ -26,7 +27,6 @@ export default async (req, res) => {
   }
   // --- END CORS HANDLING ---
 
-  // --- Logik för UPPLADDNING (POST-förfrågan) ---
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed. Only POST allowed for upload.");
   }
@@ -46,55 +46,54 @@ export default async (req, res) => {
       },
     });
 
-    const BUCKET_NAME = "wiking-portal"; // Se till att detta är namnet på din bucket
+    const BUCKET_NAME = "wiking-portal";
 
-    const { filename, contentType, message } = req.body; // <--- LÄGG TILL 'message' HÄR!
+    const { filename, contentType, message } = req.body;
 
     if (!filename || !contentType) {
       return res.status(400).send("Missing fields: filename or contentType");
     }
+    if (typeof message !== 'string') {
+      return res.status(400).send("Invalid message format.");
+    }
 
-const fileId = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
+    // *** THE CRITICAL FIX IS HERE ***
+    // Extract base name and extension correctly
+    const originalBaseName = path.basename(filename, path.extname(filename)); // "remuneration-new (1)"
+    const originalExtension = path.extname(filename); // ".png"
 
-const lastDotIndex = filename.lastIndexOf('.');
-let gcsFileName;
+    // Generate unique ID
+    const uniqueId = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
 
-if (lastDotIndex > -1) {
-    // If there's an extension, insert the fileId before it
-    const baseName = filename.substring(0, lastDotIndex);
-    const extension = filename.substring(lastDotIndex); // Includes the dot, e.g., ".jpg"
-    gcsFileName = `${baseName}-${fileId}${extension}`;
-} else {
-    // If no extension, just append the fileId
-    gcsFileName = `${filename}-${fileId}`;
-}
+    // Construct gcsFileName as "basename.ext-uniqueId"
+    // This ensures the extension is always before the unique identifier for easy parsing.
+    const gcsFileName = `${originalBaseName}${originalExtension}-${uniqueId}`; 
+    // Example: "remuneration-new (1).png-1749486849780-abcdef"
 
-const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
+    const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
 
-    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar
-
+    const expiresAt = Date.now() + 48 * 60 * 60 * 1000;
     const [uploadUrl] = await file.getSignedUrl({
       version: "v4",
       action: "write",
       expires: expiresAt,
       contentType: contentType,
-      // *** LÄGG TILL metadata för att lagra meddelandet ***
       metadata: {
-        'user-message': message || '' // Lagra meddelandet, eller en tom sträng om inget meddelande gavs
+        'user-message': message || ''
       }
     });
 
-    return res.json({
+    res.json({
       uploadUrl: uploadUrl,
-      publicId: gcsFileName, // Detta är filens unika ID i GCS
-      message: message || '' // Skicka tillbaka meddelandet till klienten för bekräftelse/vidare hantering
+      publicId: gcsFileName,
+      message: message || ''
     });
 
   } catch (error) {
-    console.error('Error in Vercel upload-function:', error);
+    console.error('FATAL ERROR in Vercel upload-function:', error);
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
-        return res.status(500).json({ error: 'Server configuration error: GCS_KEY is not valid JSON. Check format.' });
+        return res.status(500).json({ error: 'Server configuration error: GCS_KEY is not valid JSON. Please check its format.' });
     }
-    return res.status(500).json({ error: 'Internal Server Error: Could not process upload request.' });
+    return res.status(500).json({ error: 'Internal Server Error: Could not process upload request. Please try again or contact support.' });
   }
 };

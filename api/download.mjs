@@ -1,7 +1,8 @@
-// api/download.mjs
+// api/download.mjs (ADJUSTED FOR THE NEW FILENAME FORMAT)
 
 import { Storage } from "@google-cloud/storage";
 import fetch from 'node-fetch';
+import path from 'path'; // Import Node.js path module
 
 export default async (req, res) => {
   // --- CORS HEADERS & PREFLIGHT HANDLING ---
@@ -24,7 +25,7 @@ export default async (req, res) => {
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-  // --- SLUT CORS HANTERING ---
+  // --- END CORS HANDLING ---
 
   if (req.method !== "GET") {
     return res.status(405).send("Method Not Allowed. Only GET allowed for download.");
@@ -45,7 +46,7 @@ export default async (req, res) => {
       },
     });
 
-    const BUCKET_NAME = "wiking-portal"; // Se till att detta är namnet på din bucket
+    const BUCKET_NAME = "wiking-portal";
 
     const { publicId } = req.query;
 
@@ -55,60 +56,54 @@ export default async (req, res) => {
 
     const file = storage.bucket(BUCKET_NAME).file(publicId);
 
-    // Hämta metadata för att få filtyp, originalfilnamn OCH DITT MEDDELANDE
+    // Hämta metadata för att få filtyp (inte längre för originalfilnamn, vi parsade det från publicId)
     const [metadata] = await file.getMetadata();
     const contentType = metadata.contentType || 'application/octet-stream';
     
-    // --- Extrahera originalfilnamnet från publicId ---
+    // *** EXTRACT ORIGINAL FILENAME FROM THE NEW publicId FORMAT ***
+    // Example publicId: "remuneration-new (1).png-1749486849780-abcdef"
     const lastHyphenIndex = publicId.lastIndexOf('-');
-    let originalFileName = publicId;
+    let originalFileNameWithExt = publicId; // Default to publicId if no hyphen found
     if (lastHyphenIndex !== -1) {
-        originalFileName = publicId.substring(0, lastHyphenIndex);
+        originalFileNameWithExt = publicId.substring(0, lastHyphenIndex); // "remuneration-new (1).png"
     }
+
+    // Now, originalFileNameWithExt *should* contain the full original filename including extension.
+    // We can also ensure it has the correct extension based on contentType if needed, but it should be fine.
+    // Let's use the extracted name directly.
+    const originalFileName = originalFileNameWithExt; // This is the name we want to show/download as.
     
-    // Försök lägga till filändelse om den saknas i originalFileName
-    if (!originalFileName.includes('.') && contentType) {
-        const fileExtension = contentType.split('/')[1];
-        if (fileExtension) {
-            originalFileName = `${originalFileName}.${fileExtension}`;
-        }
-    }
+    // NOTE: The 'user-message' metadata is still stored in GCS by upload.mjs,
+    // but in this setup, we're not using it directly in download.mjs.
+    // You could retrieve it here with `metadata.metadata['user-message']` if you wanted to log it,
+    // but it won't be sent to the client by this download.mjs version.
 
-    // *** Hämta det lagrade meddelandet från metadata ***
-    // GCS konverterar metadata-nycklar till små bokstäver och lagrar dem under 'metadata' objektet.
-    const userMessage = metadata.metadata && metadata.metadata['user-message'] ? metadata.metadata['user-message'] : '';
-
-    // Generera en signerad URL för att läsa filen.
-    const expiresAt = Date.now() + 48 * 60 * 60 * 1000; // Signerad URL giltig i 48 timmar
+    const expiresAt = Date.now() + 48 * 60 * 60 * 1000;
     const [gcsReadUrl] = await file.getSignedUrl({
       version: "v4",
       action: "read",
       expires: expiresAt,
     });
 
-    console.log(`INFO: Vercel hämtar fil från GCS via: ${gcsReadUrl}`);
-    console.log(`INFO: Filmeddelande från metadata: ${userMessage}`); // Logga meddelandet
+    console.log(`INFO: Vercel fetching file from GCS via: ${gcsReadUrl}`);
 
-    // --- Proxy-logik: Hämta filen från GCS och skicka den till klienten ---
     const gcsResponse = await fetch(gcsReadUrl);
 
     if (!gcsResponse.ok) {
-        console.error(`FEL: Kunde inte hämta fil från GCS: ${gcsResponse.status} - ${gcsResponse.statusText}`);
-        return res.status(gcsResponse.status).json({ error: `Kunde inte hämta fil från lagring: ${gcsResponse.statusText}` });
+        console.error(`ERROR: Could not fetch file from GCS: ${gcsResponse.status} - ${gcsResponse.statusText}`);
+        return res.status(gcsResponse.status).json({ error: `Could not fetch file from storage: ${gcsResponse.statusText}` });
     }
 
-    // Sätt Content-Disposition: attachment. Detta är vad som tvingar nedladdningen.
     res.setHeader('Content-Disposition', `attachment; filename="${originalFileName}"`);
     res.setHeader('Content-Type', contentType);
     
-    // Strömma GCS-svaret direkt till klienten (webbläsaren)
     gcsResponse.body.pipe(res);
 
   } catch (error) {
-    console.error('FATALT FEL i Vercel download-funktion:', error);
+    console.error('FATAL ERROR in Vercel download-function:', error);
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
-        return res.status(500).json({ error: 'Serverkonfigurationsfel: GCS_KEY är inte giltig JSON. Kontrollera formatet.' });
+        return res.status(500).json({ error: 'Server configuration error: GCS_KEY is not valid JSON. Check format.' });
     }
-    return res.status(500).json({ error: 'Internt serverfel: Kunde inte behandla nedladdningsförfrågan.' });
+    return res.status(500).json({ error: 'Internal Server Error: Could not process download request.' });
   }
 };

@@ -1,5 +1,5 @@
 diff --git a/api/upload.mjs b/api/upload.mjs
-index 5dcd049620ceb3ca92381e3aa52f33e001ad2515..c1973f4e193271d11d1ded1788e2bfeb66da26dc 100644
+index 5dcd049620ceb3ca92381e3aa52f33e001ad2515..39fc97a3ce8e009e98b99e6429432e1084ad734e 100644
 --- a/api/upload.mjs
 +++ b/api/upload.mjs
 @@ -1,113 +1,117 @@
@@ -75,7 +75,7 @@ index 5dcd049620ceb3ca92381e3aa52f33e001ad2515..c1973f4e193271d11d1ded1788e2bfeb
 +        extensionHeaders: message ? { "x-goog-meta-message": message } : undefined,
        });
  
-+      const baseUrl = process.env.BASE_URL || origin || "";
++      const baseUrl = process.env.BASE_URL || 'https://webflow-gcs-uploader.vercel.app';
 +      const sanitizedBase = baseUrl.replace(/\/$/, "");
 +      const shareUrl = `${sanitizedBase}/api/share?publicId=${encodeURIComponent(gcsFileName)}`;
 +

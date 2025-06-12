@@ -1,6 +1,6 @@
 // api/upload.mjs
-import { Storage } from "@google-cloud/storage"; // FIXAD RAD
-import * as crypto from "crypto"; // FIXAD RAD
+import { Storage } from "@google-cloud/storage";
+import * as crypto from "crypto";
 
 export default async (req, res) => {
   // --- CORS HEADERS & PREFLIGHT HANDLING ---
@@ -40,11 +40,11 @@ export default async (req, res) => {
       },
     });
 
-    const BUCKET_NAME = "wiking-portal"; // Se till att detta är namnet på din bucket
+    const BUCKET_NAME = "wiking-portal"; // Ensure this matches your bucket name
 
-    // --- Logik för UPPLADDNING (POST-förfrågan) ---
+    // --- Upload logic (POST request) ---
     if (req.method === "POST") {
-      const { filename, contentType } = req.body;
+      const { filename, contentType, message } = req.body;
 
       if (!filename || !contentType) {
         return res.status(400).send("Missing fields: filename or contentType");
@@ -54,22 +54,28 @@ export default async (req, res) => {
       const gcsFileName = `${fileId}-${filename}`;
       const file = storage.bucket(BUCKET_NAME).file(gcsFileName);
 
-      const expiresAt = Date.now() + 10 * 60 * 1000; // Signerad URL giltig i 10 min för UPLADDNING
+      const expiresAt = Date.now() + 10 * 60 * 1000; // Signed URL valid for 10 minutes
 
       const [uploadUrl] = await file.getSignedUrl({
         version: "v4",
         action: "write",
         expires: expiresAt,
         contentType: contentType,
+        extensionHeaders: message ? { "x-goog-meta-message": message } : undefined,
       });
+
+      const baseUrl = process.env.BASE_URL || origin || "";
+      const sanitizedBase = baseUrl.replace(/\/$/, "");
+      const shareUrl = `${sanitizedBase}/api/share?publicId=${encodeURIComponent(gcsFileName)}`;
 
       return res.json({
         uploadUrl: uploadUrl,
-        publicId: gcsFileName // Detta är filens unika ID i GCS
+        publicId: gcsFileName, // Detta är filens unika ID i GCS
+        shareUrl: shareUrl,
       });
     }
 
-    // --- Logik för NEDLADDNING (GET-förfrågan) ---
+    // --- Download logic (GET request) ---
     // Denna del av koden är redundant om du har en separat download.mjs-fil.
     // Jag rekommenderar att ta bort den för att hålla funktionerna rena och dedikerade.
     else if (req.method === "GET") {
@@ -81,24 +87,22 @@ export default async (req, res) => {
 
       const file = storage.bucket(BUCKET_NAME).file(publicId);
 
-      const expiresAt = Date.now() + 10 * 60 * 1000; // Signerad URL giltig i 10 min för NEDLADDNING
+      const expiresAt = Date.now() + 10 * 60 * 1000; // Signed URL valid for 10 minutes
 
-      // Försök extrahera originalfilnamnet från publicId för Content-Disposition
+      // Try to extract the original file name from publicId for Content-Disposition
       const originalFileName = publicId.includes('-') ? publicId.substring(publicId.indexOf('-') + 1) : publicId;
 
       const [downloadUrl] = await file.getSignedUrl({
         version: "v4",
         action: "read",
         expires: expiresAt,
-        otherArgs: {
-          responseDisposition: `attachment; filename="${originalFileName}"`,
-        },
+        responseDisposition: `attachment; filename="${originalFileName}"`,
       });
 
       return res.json({ downloadUrl: downloadUrl });
     }
 
-    // --- Hantera andra HTTP-metoder ---
+    // --- Handle other HTTP methods ---
     else {
       return res.status(405).send("Method Not Allowed. Only POST for upload and GET for download allowed.");
     }

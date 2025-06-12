@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Filuppladdning</title>
+<style>
+  .upload-container {
+    font-family: 'Arial', sans-serif;
+    max-width: 500px;
+    margin: 40px auto;
+    padding: 30px;
+    border-radius: 10px;
+    background-color: #f9f9f9;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+  .upload-container h2 {
+    color: #2c3e50;
+    margin-bottom: 25px;
+    font-size: 1.8em;
+  }
+  .upload-container p {
+    color: #7f8c8d;
+    font-size: 0.95em;
+    margin-bottom: 30px;
+    line-height: 1.5;
+  }
+  .upload-container input[type="file"],
+  .upload-container input[type="text"] {
+    display: block;
+    width: calc(100% - 20px);
+    padding: 12px 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    font-size: 1em;
+  }
+  .upload-container input[type="file"] {
+    display: none;
+  }
+  .upload-container .custom-file-upload {
+    border: 2px dashed #3498db;
+    background-color: #ecf0f1;
+    color: #3498db;
+    padding: 15px 20px;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    font-weight: bold;
+    font-size: 1em;
+    display: block;
+  }
+  .upload-container .custom-file-upload:hover {
+    background-color: #e0e6e7;
+    border-color: #2980b9;
+  }
+  .upload-container button {
+    background-color: #2ecc71;
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    width: 100%;
+  }
+  .upload-container button:hover {
+    background-color: #27ae60;
+    transform: translateY(-2px);
+  }
+  #result {
+    margin-top: 30px;
+    padding: 15px;
+    border-radius: 5px;
+    background-color: #e7f3e7;
+    color: #27ae60;
+    font-weight: bold;
+    border: 1px solid #27ae60;
+    display: none;
+  }
+  #result.error {
+    background-color: #fde0e0;
+    color: #c0392b;
+    border-color: #c0392b;
+  }
+  @media (max-width: 600px) {
+    .upload-container {
+      margin: 20px;
+      padding: 20px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="upload-container">
+  <h2>Ladda upp fil</h2>
+  <p>Välj din fil och lägg till ett meddelande som beskriver filen för mottagaren.</p>
+
+  <label for="fileInput" class="custom-file-upload">Välj fil</label>
+  <input type="file" id="fileInput" accept="*/*">
+  <input type="text" id="messageInput" placeholder="Skriv ett meddelande här..." maxlength="200">
+
+  <button id="uploadBtn">Ladda upp</button>
+  <div id="result"></div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const messageInput = document.getElementById('messageInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const resultDiv = document.getElementById('result');
+const customFileUploadLabel = document.querySelector('.custom-file-upload');
+
+const API_BASE = 'https://webflow-gcs-uploader.vercel.app'; // ändra till din domän
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) {
+    customFileUploadLabel.textContent = `Vald fil: ${fileInput.files[0].name}`;
+  } else {
+    customFileUploadLabel.textContent = 'Välj fil';
+  }
+});
+
+uploadBtn.addEventListener('click', async () => {
+  const file = fileInput.files[0];
+  const message = messageInput.value.trim();
+
+  resultDiv.style.display = 'none';
+  resultDiv.classList.remove('error');
+  resultDiv.textContent = '';
+
+  if (!file) {
+    displayResult('Vänligen välj en fil först.', true);
+    return;
+  }
+  if (!message) {
+    displayResult('Vänligen skriv ett meddelande till filen.', true);
+    return;
+  }
+
+  uploadBtn.textContent = 'Laddar upp...';
+  uploadBtn.disabled = true;
+
+  const filename = file.name;
+  const contentType = file.type || 'application/octet-stream';
+
+  try {
+    const response = await fetch(`${API_BASE}/api/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, contentType, message })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Något gick fel vid förberedelse av uppladdning.');
+    }
+
+    const { uploadUrl, shareUrl } = data;
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+    });
+    if (!uploadResponse.ok) {
+      throw new Error('Filen kunde inte laddas upp till molnlagringen.');
+    }
+
+    displayResult(`Filen \"${filename}\" har laddats upp! <a href="${shareUrl}" target="_blank">Dela länk</a>`);
+
+    fileInput.value = '';
+    messageInput.value = '';
+    customFileUploadLabel.textContent = 'Välj fil';
+  } catch (error) {
+    console.error('Uppladdningsfel:', error);
+    displayResult(`Fel vid uppladdning: ${error.message}`, true);
+  } finally {
+    uploadBtn.textContent = 'Ladda upp';
+    uploadBtn.disabled = false;
+  }
+});
+
+function displayResult(message, isError = false) {
+  resultDiv.innerHTML = message;
+  resultDiv.style.display = 'block';
+  if (isError) {
+    resultDiv.classList.add('error');
+  } else {
+    resultDiv.classList.remove('error');
+  }
+}
+</script>
+</body>
+</html>
